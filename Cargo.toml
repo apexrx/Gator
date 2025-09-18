@@ -1,0 +1,11 @@
+[package]
+name = "rget-clone"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+reqwest = { version = "0.12.4", features = ["stream"] }
+indicatif = "0.17.11"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
