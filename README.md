@@ -1,21 +1,18 @@
 # Gator 🐊
 
-A blazingly fast HTTP downloader written in Rust with support for resumable downloads, chunked downloading, and real-time progress tracking.
+A fast HTTP downloader written in Rust. Uses a work-stealing scheduler to maximize download speeds with parallel segment downloads.
 
 ## Features
 
 - **Resume Downloads**: Automatically detects partially downloaded files and continues from where it left off
-- **Chunked Downloads**: Large files (>10MB) are downloaded in parallel chunks for maximum speed
-- **Progress Tracking**: Beautiful progress bars showing download speed, ETA, and chunk completion
-- **HTTP Range Support**: Leverages server range requests for efficient partial downloads
+- **Work-Stealing Scheduler**: Large files are split into 1MB segments and downloaded in parallel by a dynamic worker pool
+- **Progress Tracking**: Shows download speed, ETA, and progress in real-time
+- **HTTP Range Support**: Uses range requests for efficient parallel downloads
 - **Cross-Platform**: Works on Windows, macOS, and Linux
-- **Zero Configuration**: Just point it at a URL and watch it work
 
 ## Installation
 
-### Prerequisites
-
-Make sure you have Rust installed. If not, get it from [rustup.rs](https://rustup.rs/).
+You'll need Rust installed. If you don't have it, grab it from [rustup.rs](https://rustup.rs/).
 
 ### Build from Source
 
@@ -25,7 +22,7 @@ cd gator
 cargo build --release
 ```
 
-The binary will be available at `target/release/rget-clone`.
+The binary will be at `target/release/gator`.
 
 ### Install Globally
 
@@ -37,30 +34,20 @@ cargo install --path .
 
 ### Basic Download
 
-Download a file to the current directory:
-
 ```bash
 gator https://example.com/largefile.zip
 ```
 
 ### Specify Output File
 
-Download with a custom filename:
-
 ```bash
 gator https://example.com/file.zip -o my-file.zip
-# or
-gator https://example.com/file.zip --output my-file.zip
 ```
 
 ### Quiet Mode
 
-Download without progress bars (useful for scripts):
-
 ```bash
 gator https://example.com/file.zip --quiet
-# or
-gator https://example.com/file.zip -q
 ```
 
 ### Command Line Options
@@ -81,66 +68,43 @@ OPTIONS:
 
 ## How It Works
 
-### Smart Download Strategy
-
-Gator automatically determines the best download strategy based on the file:
+Gator uses a work-stealing scheduler for parallel downloads:
 
 1. **Small Files (<10MB)**: Downloads in a single stream
-2. **Large Files (>10MB)**: Splits into 10MB chunks and downloads in parallel
+2. **Large Files (>10MB)**: Splits into 1MB segments and downloads them in parallel using a worker pool (default: max(16, CPU cores × 4))
 3. **Resume Support**: Detects existing partial files and continues from the last byte
 
-### Chunked Downloads
+### Work-Stealing Scheduler
 
-For large files on servers that support range requests, Gator:
+For large files, Gator:
+- Splits the file into 1MB segments
+- Creates a worker pool that dynamically pulls segments from a queue
+- Each worker downloads a segment and writes it directly to the correct file offset
+- Fast workers automatically grab more segments, ensuring no idle time
+- Pre-allocates the full file size to reduce disk fragmentation
 
-- Splits the file into ~10MB chunks
-- Downloads all chunks concurrently
-- Shows per-chunk progress in the status bar
-- Automatically combines chunks into the final file
-- Cleans up temporary chunk files
-
-### Progress Tracking
-
-The progress bar shows:
-- Current download speed (MB/s)
-- Bytes downloaded / Total bytes
-- Estimated time remaining (ETA)
-- Chunk completion status (for chunked downloads)
-- Elapsed time
+No temporary files are created - everything writes directly to the final file.
 
 ## Technical Details
 
-### Dependencies
-
-- **reqwest**: HTTP client with streaming support
+Built with:
+- **reqwest**: HTTP client with async DNS
 - **tokio**: Async runtime for concurrent downloads
-- **clap**: Command-line argument parsing
-- **indicatif**: Progress bar implementation
-- **futures**: Async utilities for handling concurrent tasks
+- **mimalloc**: High-performance memory allocator
+- **indicatif**: Progress bars
 
-### Performance
+Performance optimizations:
+- TCP_NODELAY for lower latency
+- File pre-allocation to reduce fragmentation
+- Parallel writes with independent file handles
+- Work-stealing scheduler for optimal load balancing
+- Aggressive LTO compilation for smaller, faster binaries
 
-- Concurrent chunk downloads maximize bandwidth utilization
-- Streaming writes prevent memory bloat on large files
-- Range requests minimize server load and enable resume functionality
-- Progress tracking has minimal performance overhead
+## Server Compatibility
 
-### Server Compatibility
-
-Gator works with any HTTP/HTTPS server, with enhanced features when the server supports:
-- **Range Requests** (`Accept-Ranges: bytes`): Enables chunked downloads and resume
-- **Content-Length** header: Enables progress tracking and ETA calculation
-- **Content-Type** header: Shows file type information
-
-## Error Handling
-
-Gator gracefully handles common scenarios:
-
-- **Network interruptions**: Automatic resume on restart
-- **Server errors**: Clear error messages with HTTP status codes
-- **Disk space issues**: Fails gracefully with filesystem errors
-- **Invalid URLs**: Validates URLs before attempting download
-- **Permission errors**: Clear messages for file system permission issues
+Works with any HTTP/HTTPS server. Enhanced features require:
+- **Range Requests** (`Accept-Ranges: bytes`): Enables parallel downloads and resume
+- **Content-Length** header: Enables progress tracking and ETA
 
 ## Why "Gator"?
 

@@ -1,7 +1,14 @@
 [package]
-name = "rget-clone"
+name = "gator"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Gator Contributors"]
+description = "A blazingly fast HTTP downloader with work-stealing scheduler and optimized I/O"
+license = "MIT"
+
+[[bin]]
+name = "gator"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
@@ -9,3 +16,11 @@ reqwest = { version = "0.12.4", features = ["stream"] }
 indicatif = "0.17.11"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"
+# Note: reqwest 0.12 uses async DNS (trust-dns/hickory-dns) internally by default
+# No need to configure separately - async DNS provides the performance benefits
+mimalloc = { version = "0.1", default-features = false }
+num_cpus = "1.16"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
